@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {},
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -22,5 +21,17 @@
     "luxon": "^3.7.2",
     "mysql2": "^3.24.6",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
-  }
+  },
+  "scripts": {
+    "test:api": "playwright test --grep @api",
+    "test:web": "playwright test --grep @web",
+    "test:master": "playwright test --grep @master",
+    "test:sanity": "playwright test --grep @sanity",
+    "test:regression": "playwright test --grep @regression",
+    "test:e2e": "playwright test tests/web/endToEndShoppingFlow.spec.ts --project=opencart-local --project=tutorialsninja --project=awesomeqa --workers=1",
+    "test:end-to-end": "npm run test:e2e",
+    "test:datadriven": "playwright test --grep @datadriven",
+    "test:master:headed": "playwright test --grep @master --headed",
+    "test:sanity:debug": "playwright test --grep @sanity --debug"
+}
 }
