@@ -318,7 +318,7 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
 ```
 
-For GitHub Actions, add repository secrets named `API_USERNAME` and `API_PASSWORD` under **Settings → Secrets and variables → Actions** to enable the FakeStore authentication test. Without them, only that credential-dependent test is skipped; the other API tests can still run. Pushes and pull requests run the API suite by default. A manually selected end-to-end run targets the hosted storefronts because a GitHub runner cannot access a developer's `localhost`.
+For GitHub Actions, add repository secrets named `API_USERNAME` and `API_PASSWORD` under **Settings → Secrets and variables → Actions** to enable the FakeStore authentication test. These must be FakeStore credentials; a GitHub personal access token only authenticates to GitHub and does not grant access to FakeStoreAPI. Without the FakeStore credentials, only the credential-dependent login test is skipped. If FakeStoreAPI returns HTTP 403 to a GitHub-hosted runner, the affected API test is explicitly skipped with the denial reason; other status codes and response-contract failures still fail the run. Pushes and pull requests run the API suite by default. A manually selected end-to-end run targets the hosted storefronts because a GitHub runner cannot access a developer's `localhost`.
 
 ---
 

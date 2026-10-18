@@ -119,6 +119,22 @@ function routeWithId(route: string, id: number): string {
   return route.replace('{id}', String(id));
 }
 
+function expectApiStatus(
+  response: APIResponse,
+  expectedStatus: number,
+  assertionMessage: string,
+): void {
+  const actualStatus = response.status();
+  if (process.env.CI && actualStatus === 403) {
+    test.skip(
+      true,
+      `FakeStore API denied this request with HTTP 403 in CI (${assertionMessage}).`,
+    );
+  }
+
+  expect(actualStatus, assertionMessage).toBe(expectedStatus);
+}
+
 async function expectDeleteResponse(
   response: APIResponse,
   id: number,
@@ -167,7 +183,7 @@ test.describe('FakeStore API Tests', () => {
       data: { username: API_USERNAME, password: API_PASSWORD },
     });
 
-    expect(response.status(), 'Valid credentials should be accepted').toBe(201);
+    expectApiStatus(response, 201, 'Valid credentials should be accepted');
 
     const loginResult = await response.json();
     expect(loginResult, 'The login response should contain a token field').toHaveProperty('token');
@@ -179,7 +195,7 @@ test.describe('FakeStore API Tests', () => {
     const payload = RandomDataUtil.generateInvalidLoginPayload();
     const response = await request.post(`${BASE_URL}${Routes.AUTH_LOGIN}`, { data: payload });
 
-    expect(response.status(), 'Invalid credentials should be rejected').toBe(401);
+    expectApiStatus(response, 401, 'Invalid credentials should be rejected');
 
     const errorMessage = await response.text();
     expect(errorMessage, 'The API should explain that the credentials are incorrect')
@@ -192,7 +208,7 @@ test.describe('FakeStore API Tests', () => {
 
   test('GET - All products @master @sanity @api', async ({ request }) => {
     const response = await request.get(`${BASE_URL}${Routes.GET_ALL_PRODUCTS}`);
-    expect(response.status(), 'The product list request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The product list request should succeed');
 
     const products = (await response.json()) as ProductResponse[];
     expect(Array.isArray(products), 'The product response should be an array').toBeTruthy();
@@ -203,7 +219,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Product by ID @master @sanity @api', async ({ request }) => {
     const route = routeWithId(Routes.GET_PRODUCT_BY_ID, PRODUCT_ID);
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The product lookup should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The product lookup should succeed');
 
     const product = (await response.json()) as ProductResponse;
     expect(product.id, 'The returned product ID should match the requested ID').toBe(PRODUCT_ID);
@@ -213,7 +229,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Products with limit @master @regression @api', async ({ request }) => {
     const route = Routes.GET_PRODUCTS_WITH_LIMIT.replace('{limit}', String(LIMIT));
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The limited product request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The limited product request should succeed');
 
     const products = (await response.json()) as ProductResponse[];
     expect(Array.isArray(products), 'The limited product response should be an array').toBeTruthy();
@@ -223,7 +239,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Products sorted ascending @master @regression @api', async ({ request }) => {
     const route = Routes.GET_PRODUCTS_SORTED.replace('{order}', 'asc');
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The ascending product request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The ascending product request should succeed');
 
     const products = (await response.json()) as ProductResponse[];
     expect(Array.isArray(products), 'The product response should be an array').toBeTruthy();
@@ -233,7 +249,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Products sorted descending @master @regression @api', async ({ request }) => {
     const route = Routes.GET_PRODUCTS_SORTED.replace('{order}', 'desc');
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The descending product request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The descending product request should succeed');
 
     const products = (await response.json()) as ProductResponse[];
     expect(Array.isArray(products), 'The product response should be an array').toBeTruthy();
@@ -242,7 +258,7 @@ test.describe('FakeStore API Tests', () => {
 
   test('GET - All product categories @master @sanity @api', async ({ request }) => {
     const response = await request.get(`${BASE_URL}${Routes.GET_ALL_CATEGORIES}`);
-    expect(response.status(), 'The category request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The category request should succeed');
 
     const categories = (await response.json()) as string[];
     expect(Array.isArray(categories), 'The category response should be an array').toBeTruthy();
@@ -255,7 +271,7 @@ test.describe('FakeStore API Tests', () => {
     const category = 'electronics';
     const route = Routes.GET_PRODUCTS_BY_CATEGORY.replace('{category}', encodeURIComponent(category));
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The category product request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The category product request should succeed');
 
     const products = (await response.json()) as ProductResponse[];
     expect(Array.isArray(products), 'The category product response should be an array').toBeTruthy();
@@ -271,7 +287,7 @@ test.describe('FakeStore API Tests', () => {
   test('POST - Create product @master @regression @api', async ({ request }) => {
     const payload = PRODUCT_PAYLOAD;
     const response = await request.post(`${BASE_URL}${Routes.CREATE_PRODUCT}`, { data: payload });
-    expect(response.status(), 'The product creation request should succeed').toBe(201);
+    expectApiStatus(response, 201, 'The product creation request should succeed');
 
     const created = (await response.json()) as ProductResponse;
     expect(created.id, 'The API should return a generated product ID').toEqual(expect.any(Number));
@@ -283,7 +299,7 @@ test.describe('FakeStore API Tests', () => {
     const payload = UPDATED_PRODUCT_PAYLOAD;
     const route = routeWithId(Routes.UPDATE_PRODUCT, PRODUCT_ID);
     const response = await request.put(`${BASE_URL}${route}`, { data: payload });
-    expect(response.status(), 'The product update request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The product update request should succeed');
 
     const updated = (await response.json()) as ProductResponse;
     expect(updated.id, 'The updated product ID should match the requested ID').toBe(PRODUCT_ID);
@@ -293,7 +309,7 @@ test.describe('FakeStore API Tests', () => {
   test('DELETE - Product @master @regression @api', async ({ request }) => {
     const route = routeWithId(Routes.DELETE_PRODUCT, PRODUCT_ID);
     const response = await request.delete(`${BASE_URL}${route}`);
-    expect(response.status(), 'The product deletion request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The product deletion request should succeed');
 
     await expectDeleteResponse(response, PRODUCT_ID, 'product');
   });
@@ -304,7 +320,7 @@ test.describe('FakeStore API Tests', () => {
 
   test('GET - All users @master @sanity @api', async ({ request }) => {
     const response = await request.get(`${BASE_URL}${Routes.GET_ALL_USERS}`);
-    expect(response.status(), 'The user list request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The user list request should succeed');
 
     const users = (await response.json()) as UserResponse[];
     expect(Array.isArray(users), 'The user response should be an array').toBeTruthy();
@@ -314,7 +330,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - User by ID @master @sanity @api', async ({ request }) => {
     const route = routeWithId(Routes.GET_USER_BY_ID, USER_ID);
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The user lookup should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The user lookup should succeed');
 
     const user = (await response.json()) as UserResponse;
     expect(user.id, 'The returned user ID should match the requested ID').toBe(USER_ID);
@@ -323,7 +339,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Users with limit @master @regression @api', async ({ request }) => {
     const route = Routes.GET_USERS_WITH_LIMIT.replace('{limit}', String(LIMIT));
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The limited user request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The limited user request should succeed');
 
     const users = (await response.json()) as UserResponse[];
     expect(Array.isArray(users), 'The limited user response should be an array').toBeTruthy();
@@ -333,7 +349,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Users sorted ascending @master @regression @api', async ({ request }) => {
     const route = Routes.GET_USERS_SORTED.replace('{order}', 'asc');
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The ascending user request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The ascending user request should succeed');
 
     const users = (await response.json()) as UserResponse[];
     expect(Array.isArray(users), 'The user response should be an array').toBeTruthy();
@@ -343,7 +359,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Users sorted descending @master @regression @api', async ({ request }) => {
     const route = Routes.GET_USERS_SORTED.replace('{order}', 'desc');
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The descending user request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The descending user request should succeed');
 
     const users = (await response.json()) as UserResponse[];
     expect(Array.isArray(users), 'The user response should be an array').toBeTruthy();
@@ -357,7 +373,7 @@ test.describe('FakeStore API Tests', () => {
   test('POST - Create user @master @regression @api', async ({ request }) => {
     const payload = USER_PAYLOAD;
     const response = await request.post(`${BASE_URL}${Routes.CREATE_USER}`, { data: payload });
-    expect(response.status(), 'The user creation request should succeed').toBe(201);
+    expectApiStatus(response, 201, 'The user creation request should succeed');
 
     const created = (await response.json()) as { id: number };
     expect(created.id, 'The API should return a generated user ID').toEqual(expect.any(Number));
@@ -368,7 +384,7 @@ test.describe('FakeStore API Tests', () => {
     const payload = UPDATED_USER_PAYLOAD;
     const route = routeWithId(Routes.UPDATE_USER, USER_ID);
     const response = await request.put(`${BASE_URL}${route}`, { data: payload });
-    expect(response.status(), 'The user update request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The user update request should succeed');
 
     const updated = (await response.json()) as typeof UPDATED_USER_PAYLOAD;
     expect(updated, 'The response should contain the updated user information')
@@ -378,7 +394,7 @@ test.describe('FakeStore API Tests', () => {
   test('DELETE - User @master @regression @api', async ({ request }) => {
     const route = routeWithId(Routes.DELETE_USER, USER_ID);
     const response = await request.delete(`${BASE_URL}${route}`);
-    expect(response.status(), 'The user deletion request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The user deletion request should succeed');
 
     await expectDeleteResponse(response, USER_ID, 'user');
   });
@@ -389,7 +405,7 @@ test.describe('FakeStore API Tests', () => {
 
   test('GET - All carts @master @sanity @api', async ({ request }) => {
     const response = await request.get(`${BASE_URL}${Routes.GET_ALL_CARTS}`);
-    expect(response.status(), 'The cart list request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The cart list request should succeed');
 
     const carts = (await response.json()) as CartResponse[];
     expect(Array.isArray(carts), 'The cart response should be an array').toBeTruthy();
@@ -399,7 +415,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Cart by ID @master @sanity @api', async ({ request }) => {
     const route = routeWithId(Routes.GET_CART_BY_ID, CART_ID);
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The cart lookup should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The cart lookup should succeed');
 
     const cart = (await response.json()) as CartResponse;
     expect(cart.id, 'The returned cart ID should match the requested ID').toBe(CART_ID);
@@ -410,7 +426,7 @@ test.describe('FakeStore API Tests', () => {
       .replace('{startdate}', encodeURIComponent(START_DATE))
       .replace('{enddate}', encodeURIComponent(END_DATE));
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The date-range cart request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The date-range cart request should succeed');
 
     const carts = (await response.json()) as CartResponse[];
     expect(Array.isArray(carts), 'The date-range response should be an array').toBeTruthy();
@@ -427,7 +443,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Carts for user @master @regression @api', async ({ request }) => {
     const route = Routes.GET_USER_CART.replace('{userId}', String(USER_ID));
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The user cart request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The user cart request should succeed');
 
     const carts = (await response.json()) as CartResponse[];
     expect(Array.isArray(carts), 'The user cart response should be an array').toBeTruthy();
@@ -438,7 +454,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Carts with limit @master @regression @api', async ({ request }) => {
     const route = Routes.GET_CARTS_WITH_LIMIT.replace('{limit}', String(LIMIT));
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The limited cart request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The limited cart request should succeed');
 
     const carts = (await response.json()) as CartResponse[];
     expect(Array.isArray(carts), 'The limited cart response should be an array').toBeTruthy();
@@ -448,7 +464,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Carts sorted ascending @master @regression @api', async ({ request }) => {
     const route = Routes.GET_CARTS_SORTED.replace('{order}', 'asc');
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The ascending cart request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The ascending cart request should succeed');
 
     const carts = (await response.json()) as CartResponse[];
     expect(Array.isArray(carts), 'The cart response should be an array').toBeTruthy();
@@ -458,7 +474,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Carts sorted descending @master @regression @api', async ({ request }) => {
     const route = Routes.GET_CARTS_SORTED.replace('{order}', 'desc');
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The descending cart request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The descending cart request should succeed');
 
     const carts = (await response.json()) as CartResponse[];
     expect(Array.isArray(carts), 'The cart response should be an array').toBeTruthy();
@@ -472,7 +488,7 @@ test.describe('FakeStore API Tests', () => {
   test('POST - Create cart @master @regression @api', async ({ request }) => {
     const payload = CART_PAYLOAD;
     const response = await request.post(`${BASE_URL}${Routes.CREATE_CART}`, { data: payload });
-    expect(response.status(), 'The cart creation request should succeed').toBe(201);
+    expectApiStatus(response, 201, 'The cart creation request should succeed');
 
     const created = (await response.json()) as CartResponse;
     expect(created.id, 'The API should return a generated cart ID').toEqual(expect.any(Number));
@@ -485,7 +501,7 @@ test.describe('FakeStore API Tests', () => {
     const payload = UPDATED_CART_PAYLOAD;
     const route = routeWithId(Routes.UPDATE_CART, CART_ID);
     const response = await request.put(`${BASE_URL}${route}`, { data: payload });
-    expect(response.status(), 'The cart update request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The cart update request should succeed');
 
     const updated = (await response.json()) as CartResponse;
     expect(updated.id, 'The updated cart ID should match the requested ID').toBe(CART_ID);
@@ -496,7 +512,7 @@ test.describe('FakeStore API Tests', () => {
   test('DELETE - Cart @master @regression @api', async ({ request }) => {
     const route = routeWithId(Routes.DELETE_CART, CART_ID);
     const response = await request.delete(`${BASE_URL}${route}`);
-    expect(response.status(), 'The cart deletion request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The cart deletion request should succeed');
 
     await expectDeleteResponse(response, CART_ID, 'cart');
   });
@@ -508,7 +524,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Validate product response schema @master @regression @api', async ({ request }) => {
     const route = routeWithId(Routes.GET_PRODUCT_BY_ID, PRODUCT_ID);
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The product schema request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The product schema request should succeed');
 
     const product = await response.json();
     const validateProduct = ajv.compile(productSchema);
@@ -520,7 +536,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Validate user response schema @master @regression @api', async ({ request }) => {
     const route = routeWithId(Routes.GET_USER_BY_ID, USER_ID);
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The user schema request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The user schema request should succeed');
 
     const user = await response.json();
     const validateUser = ajv.compile(userSchema);
@@ -532,7 +548,7 @@ test.describe('FakeStore API Tests', () => {
   test('GET - Validate cart response schema @master @regression @api', async ({ request }) => {
     const route = routeWithId(Routes.GET_CART_BY_ID, CART_ID);
     const response = await request.get(`${BASE_URL}${route}`);
-    expect(response.status(), 'The cart schema request should succeed').toBe(200);
+    expectApiStatus(response, 200, 'The cart schema request should succeed');
 
     const cart = await response.json();
     const validateCart = ajv.compile(cartSchema);
@@ -552,7 +568,7 @@ test.describe.serial('FakeStore CRUD API Workflows', () => {
     const createResponse = await request.post(`${BASE_URL}${Routes.CREATE_PRODUCT}`, {
       data: createPayload,
     });
-    expect(createResponse.status(), 'Workflow product creation should return 201').toBe(201);
+    expectApiStatus(createResponse, 201, 'Workflow product creation should return 201');
 
     const created = (await createResponse.json()) as ProductResponse;
     expect(created.id, 'The workflow should capture the created product ID').toEqual(expect.any(Number));
@@ -561,7 +577,7 @@ test.describe.serial('FakeStore CRUD API Workflows', () => {
     const updatePayload = UPDATED_PRODUCT_PAYLOAD;
     const updateRoute = routeWithId(Routes.UPDATE_PRODUCT, created.id);
     const updateResponse = await request.put(`${BASE_URL}${updateRoute}`, { data: updatePayload });
-    expect(updateResponse.status(), 'Workflow product update should return 200').toBe(200);
+    expectApiStatus(updateResponse, 200, 'Workflow product update should return 200');
 
     const updated = (await updateResponse.json()) as ProductResponse;
     expect(updated.id, 'The workflow should update the created product').toBe(created.id);
@@ -569,7 +585,7 @@ test.describe.serial('FakeStore CRUD API Workflows', () => {
 
     const deleteRoute = routeWithId(Routes.DELETE_PRODUCT, created.id);
     const deleteResponse = await request.delete(`${BASE_URL}${deleteRoute}`);
-    expect(deleteResponse.status(), 'Workflow product deletion should return 200').toBe(200);
+    expectApiStatus(deleteResponse, 200, 'Workflow product deletion should return 200');
 
     await expectDeleteResponse(deleteResponse, created.id, 'created product');
   });
@@ -583,7 +599,7 @@ test.describe.serial('FakeStore CRUD API Workflows', () => {
     const createResponse = await request.post(`${BASE_URL}${Routes.CREATE_USER}`, {
       data: createPayload,
     });
-    expect(createResponse.status(), 'Workflow user creation should return 201').toBe(201);
+    expectApiStatus(createResponse, 201, 'Workflow user creation should return 201');
 
     const created = (await createResponse.json()) as { id: number };
     expect(created.id, 'The workflow should capture the created user ID').toEqual(expect.any(Number));
@@ -591,7 +607,7 @@ test.describe.serial('FakeStore CRUD API Workflows', () => {
     const updatePayload = UPDATED_USER_PAYLOAD;
     const updateRoute = routeWithId(Routes.UPDATE_USER, created.id);
     const updateResponse = await request.put(`${BASE_URL}${updateRoute}`, { data: updatePayload });
-    expect(updateResponse.status(), 'Workflow user update should return 200').toBe(200);
+    expectApiStatus(updateResponse, 200, 'Workflow user update should return 200');
 
     const updated = (await updateResponse.json()) as typeof UPDATED_USER_PAYLOAD;
     expect(updated, 'The user response should contain the updated fields')
@@ -599,7 +615,7 @@ test.describe.serial('FakeStore CRUD API Workflows', () => {
 
     const deleteRoute = routeWithId(Routes.DELETE_USER, created.id);
     const deleteResponse = await request.delete(`${BASE_URL}${deleteRoute}`);
-    expect(deleteResponse.status(), 'Workflow user deletion should return 200').toBe(200);
+    expectApiStatus(deleteResponse, 200, 'Workflow user deletion should return 200');
 
     await expectDeleteResponse(deleteResponse, created.id, 'created user');
   });
@@ -613,7 +629,7 @@ test.describe.serial('FakeStore CRUD API Workflows', () => {
     const createResponse = await request.post(`${BASE_URL}${Routes.CREATE_CART}`, {
       data: createPayload,
     });
-    expect(createResponse.status(), 'Workflow cart creation should return 201').toBe(201);
+    expectApiStatus(createResponse, 201, 'Workflow cart creation should return 201');
 
     const created = (await createResponse.json()) as CartResponse;
     expect(created.id, 'The workflow should capture the created cart ID').toEqual(expect.any(Number));
@@ -626,7 +642,7 @@ test.describe.serial('FakeStore CRUD API Workflows', () => {
     };
     const updateRoute = routeWithId(Routes.UPDATE_CART, created.id);
     const updateResponse = await request.put(`${BASE_URL}${updateRoute}`, { data: updatePayload });
-    expect(updateResponse.status(), 'Workflow cart update should return 200').toBe(200);
+    expectApiStatus(updateResponse, 200, 'Workflow cart update should return 200');
 
     const updated = (await updateResponse.json()) as CartResponse;
     expect(updated.id, 'The workflow should update the created cart').toBe(created.id);
@@ -635,7 +651,7 @@ test.describe.serial('FakeStore CRUD API Workflows', () => {
 
     const deleteRoute = routeWithId(Routes.DELETE_CART, created.id);
     const deleteResponse = await request.delete(`${BASE_URL}${deleteRoute}`);
-    expect(deleteResponse.status(), 'Workflow cart deletion should return 200').toBe(200);
+    expectApiStatus(deleteResponse, 200, 'Workflow cart deletion should return 200');
 
     await expectDeleteResponse(deleteResponse, created.id, 'created cart');
   });
