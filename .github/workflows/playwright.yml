@@ -4,50 +4,32 @@ name: 🎭 Playwright Tests
 
 on:
   push:
-    branches: [master]
+    branches: [main, master]
   pull_request:
-    branches: [master]
+    branches: [main, master]
   workflow_dispatch:
     inputs:
       test_suite:
         description: "Select test suite"
         type: choice
         options:
-          - test:master
-          - test:sanity
-          - test:regression
-          - test:e2e
           - test:api
+          - test:e2e
           - test:web
           - test:datadriven
-        default: "test:e2e"
-      browser:
-        description: "Select browser"
-        type: choice
-        options:
-          - chromium
-          - firefox
-          - webkit
-        default: "chromium"
-      mode:
-        description: "Run mode"
-        type: choice
-        options:
-          - headless
-          - headed
-        default: "headless"
+        default: "test:api"
 
 jobs:
   test:
     timeout-minutes: 60
-    runs-on: windows-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🟢 Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: lts/*
 
@@ -55,26 +37,28 @@ jobs:
         run: npm ci
 
       - name: 🎭 Install Playwright Browsers
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
 
       - name: ⚙️ Create .env File
-        run: Copy-Item .env.example .env
+        run: cp .env.example .env
 
       - name: 🧪 Run Playwright Tests
         run: |
-          $suite = "${{ github.event.inputs.test_suite || 'test:e2e' }}"
-          $browser = "${{ github.event.inputs.browser || 'chromium' }}"
-          $mode = "${{ github.event.inputs.mode || 'headless' }}"
-          $tag = $suite -replace 'test:', ''
-          $browserFlag = "--project=$browser"
-          $modeFlag = if ($mode -eq 'headed') { '--headed' } else { '' }
-          npx playwright test --grep "@$tag" $browserFlag $modeFlag --reporter=dot --output=test-results
+          if [ "$TEST_SUITE" = "test:e2e" ]; then
+            npx playwright test tests/web/endToEndShoppingFlow.spec.ts --project=tutorialsninja --project=awesomeqa --workers=1
+          else
+            npm run "$TEST_SUITE" -- --project=chromium
+          fi
+        shell: bash
         env:
           CI: "1"
+          TEST_SUITE: ${{ inputs.test_suite || 'test:api' }}
+          API_USERNAME: ${{ secrets.API_USERNAME }}
+          API_PASSWORD: ${{ secrets.API_PASSWORD }}
 
       - name: 📊 Upload Playwright HTML Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: reports/
@@ -82,7 +66,7 @@ jobs:
 
       - name: 📋 Upload Custom Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: custom-report
           path: custom-report/
@@ -90,7 +74,7 @@ jobs:
 
       - name: 📈 Upload Allure Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: allure-results
           path: allure-results/

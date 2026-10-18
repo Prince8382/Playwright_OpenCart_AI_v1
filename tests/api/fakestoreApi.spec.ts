@@ -5,20 +5,18 @@ import { Routes } from '../../api/endpoints/routes';
 import { DataProvider } from '../../utils/DataReader';
 import { RandomDataUtil } from '../../utils/dataGenerator';
 
-dotenv.config({ override: true });
+dotenv.config();
 
 const BASE_URL = process.env.API_BASE_URL || Routes.BASE_URL;
+const API_USERNAME = process.env.API_USERNAME || process.env.USERNAME;
+const API_PASSWORD = process.env.API_PASSWORD || process.env.PASSWORD;
 const PRODUCT_ID = Number(process.env.PRODUCT_ID ?? '1');
 const USER_ID = Number(process.env.USER_ID ?? '1');
 const CART_ID = Number(process.env.CART_ID ?? '1');
 const LIMIT = Number(process.env.LIMIT ?? '3');
 const START_DATE = process.env.START_DATE ?? '2019-12-10';
 const END_DATE = process.env.END_DATE ?? '2020-10-10';
-const API_PASSWORD = process.env.PASSWORD;
-
-if (!API_PASSWORD) {
-  throw new Error('PASSWORD must be configured for the FakeStore API tests.');
-}
+const API_TEST_USER_PASSWORD = 'playwright-api-test-password';
 
 const PRODUCT_PAYLOAD = {
   title: 'Playwright API Test Product',
@@ -56,7 +54,7 @@ const USER_FIELDS_PAYLOAD = {
 
 const USER_PAYLOAD = {
   ...USER_FIELDS_PAYLOAD,
-  password: API_PASSWORD,
+  password: API_TEST_USER_PASSWORD,
 };
 
 const UPDATED_USER_FIELDS_PAYLOAD = {
@@ -70,7 +68,7 @@ const UPDATED_USER_FIELDS_PAYLOAD = {
 
 const UPDATED_USER_PAYLOAD = {
   ...UPDATED_USER_FIELDS_PAYLOAD,
-  password: API_PASSWORD,
+  password: API_TEST_USER_PASSWORD,
 };
 
 const CART_PAYLOAD = {
@@ -160,14 +158,13 @@ test.describe('FakeStore API Tests', () => {
   // ---------------------------------------------------------
 
   test('POST - Successful login @master @sanity @api', async ({ request }) => {
-    const username = process.env.USERNAME;
-    const password = process.env.PASSWORD;
-    if (!username || !password) {
-      throw new Error('USERNAME and PASSWORD must be configured for the FakeStore login test.');
-    }
+    test.skip(
+      !API_USERNAME || !API_PASSWORD,
+      'Configure API_USERNAME and API_PASSWORD to run the FakeStore authentication test.',
+    );
 
     const response = await request.post(`${BASE_URL}${Routes.AUTH_LOGIN}`, {
-      data: { username, password },
+      data: { username: API_USERNAME, password: API_PASSWORD },
     });
 
     expect(response.status(), 'Valid credentials should be accepted').toBe(201);
