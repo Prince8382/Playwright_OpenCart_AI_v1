@@ -25,6 +25,7 @@
   "scripts": {
     "test:api": "playwright test --grep @api",
     "test:web": "playwright test --grep @web",
+    "test:db": "playwright test tests/db --project=chromium",
     "test:master": "playwright test --grep @master",
     "test:sanity": "playwright test --grep @sanity",
     "test:regression": "playwright test --grep @regression",

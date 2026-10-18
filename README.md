@@ -799,98 +799,102 @@ Open `custom-report/index.html` in a browser to view.
 
 ## 🐳 Docker Setup
 
-Run tests in a **consistent, isolated container environment** — no local dependencies needed.
+This setup runs a copy of the current OpenCart storefront, its MariaDB database, and Jenkins in Docker. Your existing XAMPP files and database are left unchanged.
 
-### Docker Architecture
+### Prerequisites
 
-```mermaid
-flowchart TB
-    subgraph Host["🖥️ Host Machine"]
-        DC["docker-compose.yml"]
-        ENV[".env"]
-        VOL["reports/, allure-results/,<br/>custom-report/, test-results/"]
-    end
+- Docker Desktop installed and running with Linux containers.
+- XAMPP Apache and MariaDB running for the one-time local migration.
+- The project `.env` file configured with the current OpenCart admin login.
 
-    subgraph Container["📦 Docker Container"]
-        DOCKERFILE["Dockerfile<br/>FROM mcr.microsoft.com/playwright"]
-        APP["/app<br/>(source code)"]
-        NPM["/app/node_modules<br/>(container-only)"]
-        ENTRY["docker-entrypoint.sh<br/>(suite selector)"]
-    end
+### Prepare a private local copy of OpenCart and its database
 
-    Host -->|docker compose run| Container
-    Container -->|bind mount| VOL
-    Container -->|reads| ENV
-    ENTRY -->|executes| APP
+Run from the project folder in PowerShell:
+
+```powershell
+npm ci
+Copy-Item .env.example .env   # Skip if your existing .env is already configured.
+powershell -ExecutionPolicy Bypass -File .\scripts\prepare-docker.ps1
 ```
 
-### Build the Image
+The preparation script copies the OpenCart source and storage, exports the configured database, and adapts only the copies for Docker networking. It also aligns the Docker copy's Admin password with `ADMIN_PASSWORD` from the local `.env`, so the Jenkins DB suite can authenticate; the XAMPP installation and its credentials are not changed. The generated files in `docker/opencart/instance/` include the database export, customer/order data, and credentials; they are intentionally gitignored. **Do not force-add or upload that folder to GitHub.**
 
-```bash
-docker compose build
+### Start OpenCart, MariaDB, and Jenkins
+
+Start Docker Desktop, then run:
+
+```powershell
+docker compose --env-file .\docker\opencart\instance\docker.env up --build -d
+docker compose --env-file .\docker\opencart\instance\docker.env ps
 ```
 
-### Run Test Suites
+- Storefront: `http://localhost:8088/`
+- OpenCart admin: `http://localhost:8088/storemanager82/`
+- Jenkins: `http://localhost:8080/`
+- MariaDB is available only on `127.0.0.1:3307` for local test/debug connections.
 
-```bash
-# Run all tests
-docker compose run --rm playwright-tests
+The admin path is discovered from the local installation and may differ from the example above.
 
-# Run specific suites
-docker compose run --rm playwright-tests sanity
-docker compose run --rm playwright-tests regression
-docker compose run --rm playwright-tests web
-docker compose run --rm playwright-tests api
-docker compose run --rm playwright-tests master
-docker compose run --rm playwright-tests e2e
-docker compose run --rm playwright-tests datadriven
+For a first Jenkins login, read the one-time setup password:
+
+```powershell
+docker compose --env-file .\docker\opencart\instance\docker.env exec jenkins `
+  cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
-### Pass Extra Playwright Arguments
+Complete the Jenkins setup wizard. Then create a **Pipeline** job:
 
-```bash
-docker compose run --rm playwright-tests web --headed --workers 2
+1. Select **New Item → Pipeline**.
+2. Under **Pipeline**, choose **Pipeline script from SCM**.
+3. Choose **Git**, enter this repository's URL, and set **Script Path** to `Jenkinsfile`.
+4. Save, choose **Build with Parameters**, and start with the `db` suite.
+
+Jenkins checks out the tracked project files. OpenCart source, its migrated database, and passwords remain local to the Docker host. A Jenkins job running on another machine will not have those local files or data; migrate a sanitized test store separately rather than uploading this private export.
+
+### Run a suite from the command line
+
+```powershell
+docker compose --env-file .\docker\opencart\instance\docker.env exec jenkins `
+  bash -lc "cd /var/jenkins_home/workspace/YOUR-JOB-NAME && npm run test:db"
 ```
 
-### Key Docker Features
+Usually, use Jenkins **Build with Parameters** instead; it runs the `Jenkinsfile` and archives the Playwright HTML/JUnit reports.
 
-- **Layer caching** — `package*.json` copied first, `npm ci` cached unless deps change
-- **Bind mounts** — Reports and artifacts persist on the host
-- **Container-only `node_modules`** — Not shadowed by host bind mount
-- **Entrypoint script** — Maps suite names to npm scripts automatically
+Stop containers without deleting their persistent data:
+
+```powershell
+docker compose --env-file .\docker\opencart\instance\docker.env down
+```
+
+The database and Jenkins settings are stored in Docker volumes. `docker compose down -v` deletes those volumes and should only be used when you intentionally want to discard them.
 
 ---
 
 ## 🚇 CI/CD with Jenkins
 
-The project includes a **declarative Jenkins pipeline** (`Jenkinsfile`) for Windows build agents.
+The project includes a declarative [`Jenkinsfile`](./Jenkinsfile) and a Dockerized Jenkins service. This local setup uses the Jenkins container as a small learning/test controller; a production Jenkins installation should run builds on a separate agent.
 
 ### Pipeline Stages
 
 ```mermaid
 flowchart LR
     A["🔄 Checkout"] --> B["📦 Install<br/>Dependencies"]
-    B --> C["🤖 Install<br/>Playwright Browsers"]
-    C --> D["🧪 Run Tests"]
-    D --> E["📊 Archive<br/>Reports"]
-    E --> F["📧 Email<br/>Notification"]
+    B --> C["🧪 Run selected<br/>Playwright suite"]
+    C --> D["📊 Publish JUnit<br/>and archive reports"]
 ```
 
 ### Pipeline Parameters
 
-| Parameter    | Choices                                                                                                | Description             |
-| ------------ | ------------------------------------------------------------------------------------------------------ | ----------------------- |
-| `TEST_SUITE` | `test:e2e`, `test:master`, `test:sanity`, `test:regression`, `test:api`, `test:web`, `test:datadriven` | Which tests to run      |
-| `BROWSER`    | `chromium`, `firefox`, `webkit`                                                                        | Browser selection       |
-| `MODE`       | `headless`, `headed`                                                                                   | Headless or headed mode |
+| Parameter    | Choices                                                                        | Description        |
+| ------------ | ------------------------------------------------------------------------------ | ------------------ |
+| `TEST_SUITE` | `db`, `api`, `web`, `e2e`, `datadriven`, `sanity`, `regression`, `master`       | Tests to run       |
+| Browser      | Chromium (headless)                                                            | Container browser  |
 
 ### Post-Build Actions
 
-- ✅ Archives HTML reports
-- ✅ Publishes JUnit XML results (test trend graph)
-- ✅ Generates and publishes Allure reports
-- ✅ Sends email notifications with status and report links
-- ✅ Cleans up `allure-results` on success
+- ✅ Publishes JUnit XML results
+- ✅ Archives Playwright HTML, Allure, custom, and test-result artifacts
+- ✅ Keeps OpenCart and MariaDB available on the shared Docker network
 
 ---
 

@@ -1,0 +1,70 @@
+services:
+  database:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${OPENCART_DB_NAME:?Run scripts/prepare-docker.ps1 first}
+      MARIADB_USER: ${OPENCART_DB_USER:?Run scripts/prepare-docker.ps1 first}
+      MARIADB_PASSWORD: ${OPENCART_DB_PASSWORD:?Run scripts/prepare-docker.ps1 first}
+      MARIADB_ROOT_PASSWORD: ${OPENCART_DB_ROOT_PASSWORD:?Run scripts/prepare-docker.ps1 first}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./docker/opencart/instance/database.sql:/docker-entrypoint-initdb.d/10-opencart.sql:ro
+      - ./docker/opencart/instance/20-opencart-admin-reset.sql:/docker-entrypoint-initdb.d/20-opencart-admin-reset.sql:ro
+    ports:
+      - "127.0.0.1:3307:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping --host=127.0.0.1 --user=root --password=\"$${MARIADB_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  opencart:
+    build:
+      context: .
+      dockerfile: Dockerfile.opencart
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./docker/opencart/instance/site:/var/www/html
+      - ./docker/opencart/instance/storage:/var/www/storage
+    ports:
+      - "127.0.0.1:8088:80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    restart: unless-stopped
+    depends_on:
+      opencart:
+        condition: service_healthy
+    env_file:
+      - ./docker/opencart/instance/docker.env
+    environment:
+      CI: "true"
+      PLAYWRIGHT_BROWSERS_PATH: /opt/playwright-browsers
+      WEB_APP_URL: http://opencart/
+      ADMIN_URL: http://opencart/${OPENCART_ADMIN_DIR}/index.php?route=common/login
+      DB_HOST: database
+      DB_PORT: "3306"
+      DB_NAME: ${OPENCART_DB_NAME:?Run scripts/prepare-docker.ps1 first}
+      DB_USER: ${OPENCART_DB_USER:?Run scripts/prepare-docker.ps1 first}
+      DB_PASSWORD: ${OPENCART_DB_PASSWORD:?Run scripts/prepare-docker.ps1 first}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+
+volumes:
+  mariadb_data:
+  jenkins_home:

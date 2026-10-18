@@ -29,6 +29,8 @@ test('New customer is verified in Admin and MySQL @db @end-to-end', async ({
   registerPage,
   adminCustomerPage,
 }) => {
+  test.setTimeout(90_000);
+
   const adminUrl = requireEnvironmentVariable('ADMIN_URL');
   const adminUsername = requireEnvironmentVariable('ADMIN_USERNAME');
   const adminPassword = requireEnvironmentVariable('ADMIN_PASSWORD');

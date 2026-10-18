@@ -6,6 +6,10 @@
 #  Dependencies 
 node_modules/
 
+# Local Docker copy of the OpenCart source, credentials, and database export
+/docker/opencart/instance/
+/docker/opencart/.prepare-*/
+
 # Environment & secrets 
 .env
 
