@@ -10,7 +10,14 @@ pipeline {
     parameters {
         choice(
             name: 'TEST_SUITE',
-            choices: ['db', 'api', 'web', 'e2e', 'datadriven', 'sanity', 'regression', 'master'].join('\n'),
+            choices: '''db
+api
+web
+e2e
+datadriven
+sanity
+regression
+master''',
             description: 'Choose a Playwright suite to run.'
         )
     }
